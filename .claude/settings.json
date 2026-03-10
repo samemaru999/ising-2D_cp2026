@@ -1,0 +1,36 @@
+{
+  "permissions": {
+    "allow": [
+      "Read",
+      "Edit",
+      "Write",
+      "Glob",
+      "Grep",
+      "Bash(julia *)",
+      "Bash(git *)",
+      "Bash(ls *)",
+      "Bash(cd *)",
+      "Bash(cat *)",
+      "Bash(mkdir *)",
+      "WebFetch",
+      "WebSearch",
+      "Agent(Explore)",
+      "Agent(Plan)",
+      "mcp__context7__resolve-library-id",
+      "mcp__context7__get-library-docs",
+      "mcp__obsidian-mcp-tools__search_vault_simple",
+      "mcp__obsidian-mcp-tools__search_vault_smart",
+      "mcp__obsidian-mcp-tools__get_vault_file",
+      "mcp__obsidian-mcp-tools__list_vault_files",
+      "mcp__arxiv-mcp-server__search_papers",
+      "mcp__arxiv-mcp-server__read_paper",
+      "mcp__codex__codex",
+      "mcp__codex__codex-reply"
+    ],
+    "deny": [
+      "Bash(rm -rf *)",
+      "Read(.env)",
+      "Read(.env.*)"
+    ]
+  }
+}
