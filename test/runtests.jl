@@ -29,6 +29,10 @@ using Ising2D
         include("Unit/test_montecarlo.jl")
     end
 
+    @testset "Statistics" begin
+        include("Unit/test_statistics.jl")
+    end
+
     # Integration / E2E (20%)
     @testset "Integration" begin
         include("Ising/test_integration.jl")
