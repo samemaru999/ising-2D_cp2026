@@ -108,3 +108,31 @@ function run_temperature_sweep(params::IsingParams, config::SimulationConfig,
 
     return TemperatureSweepResult(params, config, sorted_final_temps, results)
 end
+
+"""
+    quick_mc(T::Float64, L::Int; J::Float64=1.0, n_sweeps::Int=2000,
+             n_equilibration::Int=500, sample_interval::Int=5) -> Dict{String, Float64}
+
+温度 T と格子サイズ L を受け取り、短いMCシミュレーションを実行して
+⟨E⟩, ⟨|M|⟩, ⟨M²⟩ の平均値を Dict で返す簡易インターフェース。
+"""
+function quick_mc(T::Float64, L::Int;
+                  J::Float64=1.0, n_sweeps::Int=2000,
+                  n_equilibration::Int=500, sample_interval::Int=5)
+    T > 0 || throw(ArgumentError("T must be > 0, got $T"))
+    L >= 2 || throw(ArgumentError("L must be ≥ 2, got $L"))
+
+    config = SimulationConfig(n_sweeps, n_equilibration, sample_interval)
+    lattice = random_lattice(L)
+    N = L^2
+    beta = 1.0 / T
+
+    avg, _ = run_single_temperature(lattice, beta, N, config; J=J)
+
+    n = avg.n_samples
+    return Dict(
+        "E"  => avg.sum_e / n,
+        "M"  => avg.sum_abs_m / n,
+        "M2" => avg.sum_m2 / n
+    )
+end

@@ -46,3 +46,40 @@ end
         @test abs(magnetization(lat)) > 0.9
     end
 end
+
+@testset "quick_mc" begin
+    @testset "returns Dict with expected keys" begin
+        Random.seed!(42)
+        result = quick_mc(2.0, 4)
+        @test result isa Dict{String, Float64}
+        @test haskey(result, "E")
+        @test haskey(result, "M")
+        @test haskey(result, "M2")
+    end
+
+    @testset "physical value ranges" begin
+        Random.seed!(42)
+        result = quick_mc(2.0, 4)
+        @test -2.0 <= result["E"] <= 0.0
+        @test 0.0 <= result["M"] <= 1.0
+        @test 0.0 <= result["M2"] <= 1.0
+    end
+
+    @testset "low T → high M2" begin
+        Random.seed!(42)
+        result = quick_mc(0.5, 8; n_sweeps=1000, n_equilibration=500)
+        @test result["M2"] > 0.8
+    end
+
+    @testset "high T → low M2" begin
+        Random.seed!(42)
+        result = quick_mc(10.0, 8; n_sweeps=1000, n_equilibration=500)
+        @test result["M2"] < 0.2
+    end
+
+    @testset "invalid arguments" begin
+        @test_throws ArgumentError quick_mc(-1.0, 4)
+        @test_throws ArgumentError quick_mc(0.0, 4)
+        @test_throws ArgumentError quick_mc(2.0, 1)
+    end
+end

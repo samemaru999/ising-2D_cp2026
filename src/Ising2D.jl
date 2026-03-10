@@ -34,7 +34,7 @@ export random_lattice, uniform_lattice
 export magnetization, energy, delta_energy
 export metropolis_step!, sweep!
 export compute_thermodynamics
-export run_single_temperature, run_temperature_sweep
+export run_single_temperature, run_temperature_sweep, quick_mc
 export save_result, load_result
 export plot_spin_lattice, plot_thermodynamics, plot_binder_cumulant, plot_timeseries
 
