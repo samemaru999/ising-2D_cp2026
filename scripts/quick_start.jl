@@ -9,6 +9,7 @@
 """
 
 using Ising2D
+using Dates
 
 function main()
     # =========================================================================
@@ -99,6 +100,21 @@ function main()
     println("  χ      = $(round(chi, digits=6))")
     println("  U_L    = $(round(U_L, digits=6))")
     println("  acceptance rate = $(round(acceptance_rate, digits=4))")
+
+    # =========================================================================
+    # データ保存（JLD2 → data/output/）
+    # =========================================================================
+
+    params = IsingParams(L, J)
+    thermo = ThermodynamicQuantities(mean_e, mean_abs_m, C, chi, U_L)
+    result = SingleTemperatureResult(params, T, avg, thermo, acceptance_rate)
+
+    timestamp = Dates.format(now(), "yyyymmdd_HHMMSS")
+    outdir = joinpath(@__DIR__, "..", "data", "output", timestamp)
+    mkpath(outdir)
+    filename = joinpath(outdir, "L$(L)_T$(round(T, digits=3)).jld2")
+    save_result(filename, result)
+    println("\n  Saved to $filename")
 end
 
 main()
