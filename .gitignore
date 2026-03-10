@@ -20,10 +20,11 @@ Thumbs.db
 
 # Jupyter notebooks checkpoints
 .ipynb_checkpoints/
-
+*.ipynb
 # Output and data (generated at runtime)
 output/
 data/
+*.png
 
 # JLD2 data files
 *.jld2
