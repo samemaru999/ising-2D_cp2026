@@ -1,98 +1,104 @@
 #!/usr/bin/env julia
 """
-    quick_start.jl - HONetSync クイックスタート
+    quick_start.jl - Ising2D クイックスタート
 
-最小限のコードでeDSLパイプラインを実行する例
+単一温度でのモンテカルロシミュレーションを実行し、物理量を計測する。
 
 使用方法:
-    julia --project=. scripts/quick_start.jl
+    julia --project scripts/quick_start.jl
 """
 
-using HONetSync
+using Ising2D
 
-println("HONetSync Quick Start Example")
-println("="^50)
+function main()
+    # =========================================================================
+    # パラメータ設定
+    # =========================================================================
 
-# =============================================================================
-# Step 1: パラメータ設定
-# =============================================================================
-println("\n[Step 1] Creating network parameters...")
+    L = 32
+    J = 1.0
+    T = 2.269      # 臨界温度付近
+    beta = 1.0 / T
+    N = L * L
 
-N = 4  # 振動子数
-params = NetworkParams(N)
+    n_equilibration = 1000
+    n_sweeps = 5000
+    sample_interval = 5
 
-println("  N = $N oscillators")
-println("  δ = $(params.fhn.delta), a = $(params.fhn.a), b = $(params.fhn.b)")
+    println("Ising2D Monte Carlo Simulation")
+    println("=" ^ 50)
+    println("  L = $L, J = $J, T = $T")
+    println("  equilibration = $n_equilibration MCS")
+    println("  measurement   = $n_sweeps MCS (interval = $sample_interval)")
 
-# =============================================================================
-# Step 2: 安定周期解 (SPS) の計算
-# =============================================================================
-println("\n[Step 2] Computing Stable Periodic Solution...")
+    # =========================================================================
+    # 格子生成 + 熱平衡化
+    # =========================================================================
 
-# eDSLコマンド: ComputeSPS
-cmd_sps = ComputeSPS(params, 51, 100.0)  # 短いパラメータで高速化
-result_sps = interpret(cmd_sps)
+    lattice = random_lattice(L)
 
-if is_success(result_sps)
-    sps = unwrap(result_sps)
-    println("  Success! Period T = $(round(sps.T, digits=4))")
-else
-    error("Failed: $(result_sps.error)")
-end
-
-# =============================================================================
-# Step 3: 位相感受関数 (PSF) の計算
-# =============================================================================
-println("\n[Step 3] Computing Phase Sensitivity Function...")
-
-# eDSLコマンド: ComputePSF
-cmd_psf = ComputePSF(sps, 5)  # 少ない反復回数で高速化
-result_psf = interpret(cmd_psf)
-
-if is_success(result_psf)
-    psf = unwrap(result_psf)
-    println("  Success! Q matrix size = $(size(psf.Q))")
-else
-    error("Failed: $(result_psf.error)")
-end
-
-# =============================================================================
-# Step 4: 個別PCFの計算 (一部のみ)
-# =============================================================================
-println("\n[Step 4] Computing Individual PCFs (subset)...")
-
-individual_pcfs = IndividualPCF[]
-
-# デモ用に一部の組み合わせのみ計算
-for i in 1:2, j in 1:2, k in 1:2
-    cmd = ComputeIndividualPCF(sps, psf, i, j, k)
-    result = interpret(cmd)
-    if is_success(result)
-        push!(individual_pcfs, unwrap(result))
+    println("\n[1] Equilibrating...")
+    for _ in 1:n_equilibration
+        sweep!(lattice, beta; J=J)
     end
+    println("  Done.")
+
+    # =========================================================================
+    # 測定
+    # =========================================================================
+
+    println("[2] Measuring...")
+
+    avg = ThermalAverages()
+    total_accepted = 0
+
+    for sweep_i in 1:n_sweeps
+        accepted = sweep!(lattice, beta; J=J)
+        total_accepted += accepted
+
+        if sweep_i % sample_interval == 0
+            e = energy(lattice; J=J) / N
+            m = magnetization(lattice)
+
+            avg.sum_e += e
+            avg.sum_e2 += e^2
+            avg.sum_abs_m += abs(m)
+            avg.sum_m2 += m^2
+            avg.sum_m4 += m^4
+            avg.n_samples += 1
+        end
+    end
+
+    # =========================================================================
+    # 熱力学量の計算
+    # =========================================================================
+
+    n = avg.n_samples
+    mean_e = avg.sum_e / n
+    mean_e2 = avg.sum_e2 / n
+    mean_abs_m = avg.sum_abs_m / n
+    mean_m2 = avg.sum_m2 / n
+    mean_m4 = avg.sum_m4 / n
+
+    C = N / T^2 * (mean_e2 - mean_e^2)
+    chi = N / T * (mean_m2 - mean_abs_m^2)
+    U_L = 1.0 - mean_m4 / (3.0 * mean_m2^2)
+
+    acceptance_rate = total_accepted / (n_sweeps * N)
+
+    # =========================================================================
+    # 結果表示
+    # =========================================================================
+
+    println("\n" * "=" ^ 50)
+    println("Results (n_samples = $n)")
+    println("=" ^ 50)
+    println("  ⟨e⟩   = $(round(mean_e, digits=6))")
+    println("  ⟨|m|⟩ = $(round(mean_abs_m, digits=6))")
+    println("  C      = $(round(C, digits=6))")
+    println("  χ      = $(round(chi, digits=6))")
+    println("  U_L    = $(round(U_L, digits=6))")
+    println("  acceptance rate = $(round(acceptance_rate, digits=4))")
 end
 
-println("  Computed $(length(individual_pcfs)) individual PCFs")
-
-# =============================================================================
-# Step 5: 事前定義された結合を使用
-# =============================================================================
-println("\n[Step 5] Using predefined coupling tensor...")
-
-# 事前定義された線形最適化結合を取得
-C_linear = get_predefined_coupling(N, :linear)
-println("  Using linear-optimized coupling (N=$N)")
-println("  ||C|| = $(round(compute_coupling_frobenius_norm(C_linear), digits=6))")
-
-# =============================================================================
-# 結果サマリー
-# =============================================================================
-println("\n" * "="^50)
-println("Quick Start Completed!")
-println("="^50)
-println("""
-Next steps:
-  1. Run full pipeline: julia --project=. scripts/main.jl
-  2. Run tests: julia --project=. -e 'using Pkg; Pkg.test()'
-  3. See README.md for detailed documentation
-""")
+main()
