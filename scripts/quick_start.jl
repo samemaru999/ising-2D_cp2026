@@ -74,17 +74,7 @@ function main()
     # 熱力学量の計算
     # =========================================================================
 
-    n = avg.n_samples
-    mean_e = avg.sum_e / n
-    mean_e2 = avg.sum_e2 / n
-    mean_abs_m = avg.sum_abs_m / n
-    mean_m2 = avg.sum_m2 / n
-    mean_m4 = avg.sum_m4 / n
-
-    C = N / T^2 * (mean_e2 - mean_e^2)
-    chi = N / T * (mean_m2 - mean_abs_m^2)
-    U_L = 1.0 - mean_m4 / (3.0 * mean_m2^2)
-
+    thermo = compute_thermodynamics(avg, N, T)
     acceptance_rate = total_accepted / (n_sweeps * N)
 
     # =========================================================================
@@ -92,13 +82,13 @@ function main()
     # =========================================================================
 
     println("\n" * "=" ^ 50)
-    println("Results (n_samples = $n)")
+    println("Results (n_samples = $(avg.n_samples))")
     println("=" ^ 50)
-    println("  ⟨e⟩   = $(round(mean_e, digits=6))")
-    println("  ⟨|m|⟩ = $(round(mean_abs_m, digits=6))")
-    println("  C      = $(round(C, digits=6))")
-    println("  χ      = $(round(chi, digits=6))")
-    println("  U_L    = $(round(U_L, digits=6))")
+    println("  ⟨e⟩   = $(round(thermo.mean_energy, digits=6))")
+    println("  ⟨|m|⟩ = $(round(thermo.mean_abs_magnetization, digits=6))")
+    println("  C      = $(round(thermo.specific_heat, digits=6))")
+    println("  χ      = $(round(thermo.susceptibility, digits=6))")
+    println("  U_L    = $(round(thermo.binder_cumulant, digits=6))")
     println("  acceptance rate = $(round(acceptance_rate, digits=4))")
 
     # =========================================================================
@@ -106,7 +96,6 @@ function main()
     # =========================================================================
 
     params = IsingParams(L, J)
-    thermo = ThermodynamicQuantities(mean_e, mean_abs_m, C, chi, U_L)
     result = SingleTemperatureResult(params, T, avg, thermo, acceptance_rate)
 
     timestamp = Dates.format(now(), "yyyymmdd_HHMMSS")
