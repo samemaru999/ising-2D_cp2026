@@ -1,28 +1,41 @@
-"""
-    HONetSync テストスイート
-
-FDD層別のテスト構成:
-- Unit/: 単体テスト（Pure関数のテスト）
-- Integration/: 統合テスト（インタープリターのテスト）
-- E2E/: End-to-Endテスト（パイプライン全体のテスト）
-"""
-
 using Test
-using HONetSync
+using Random
+using Ising2D
 
-@testset "HONetSync.jl" begin
+@testset "Ising2D" begin
 
-    @testset "Domain Layer" begin
-        include("Unit/test_domain.jl")
+    # Unit tests (80%)
+    @testset "Types" begin
+        include("Unit/test_types.jl")
     end
 
-    @testset "Logic Layer" begin
-        include("Unit/test_logic.jl")
+    @testset "Observables & Averages" begin
+        include("Unit/test_observables.jl")
     end
 
+    @testset "Results" begin
+        include("Unit/test_results.jl")
+    end
+
+    @testset "Lattice" begin
+        include("Unit/test_lattice.jl")
+    end
+
+    @testset "Physics" begin
+        include("Unit/test_physics.jl")
+    end
+
+    @testset "MonteCarlo" begin
+        include("Unit/test_montecarlo.jl")
+    end
+
+    # Integration / E2E (20%)
     @testset "Integration" begin
-        include("Integration/test_interpreters.jl")
+        include("Ising/test_integration.jl")
+    end
+
+    @testset "E2E" begin
+        include("E2E/test_simulation.jl")
     end
 
 end
-
