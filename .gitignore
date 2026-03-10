@@ -25,7 +25,7 @@ Thumbs.db
 reference/
 output/
 data/
-!data/output/figs
+!data/output/figs/
 *.png
 
 # JLD2 data files
