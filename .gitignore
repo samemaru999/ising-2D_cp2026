@@ -24,9 +24,12 @@ Thumbs.db
 # Output and data (generated at runtime)
 reference/
 output/
-data/
+data/*
+!data/output/
+data/output/*
 !data/output/figs/
-*.png
+data/output/figs/**
+!data/output/figs/**/*.png
 
 # JLD2 data files
 *.jld2
