@@ -1,210 +1,169 @@
-# Ising2D プロジェクト解析とAPIリファレンス
-
-このドキュメントでは、`Ising2D` パッケージの詳細な解析結果と、APIの使用方法について解説します。
+# Ising2D プロジェクト解析と API リファレンス
 
 ## 1. プロジェクト概要
 
-**Ising2D** は、高次結合（Higher-Order Coupling）を持つ集団振動ネットワークの同期現象を解析・最適化するための Julia パッケージです。
-**Functional Declarative Design (FDD)** アーキテクチャを採用しており、純粋な数学的定義（Domain/Logic）と、副作用を伴う計算処理（Interpreters/Runtime）が厳密に分離されています。
+**Ising2D** は、2次元正方格子イジングモデルのモンテカルロシミュレーションを行うJuliaパッケージ。メトロポリス法による単一温度シミュレーションと温度掃引を実装し、相転移（$T_c \approx 2.269$）を観測する。
 
-## 2. アーキテクチャ詳細
+**Functional Declarative Design (FDD)** アーキテクチャを採用し、純粋な物理計算（Ising/）と副作用を伴う処理（Runtime/）を分離している。
 
-本プロジェクトは以下の4層構造で構成されています。
+## 2. アーキテクチャ
 
-### Layer 1: Domain Layer [Pure]
-- **役割**: ドメインモデル、定数、eDSL（コマンド定義）、バリデーションロジックの定義。
-- **特徴**: 副作用なし、他レイヤーへの依存なし。
-- **主要ファイル**:
-    - `src/Domain/Types.jl`: `NetworkParams`, `StablePeriodicSolution` などの型定義。
-    - `src/Domain/DSL.jl`: `ComputeSPS`, `OptimizeLinearStability` などのコマンド定義。
-
-### Layer 2: Logic Layer [Pure]
-- **役割**: コアとなる数学的アルゴリズム、ダイナミクス、物理法則の実装。
-- **特徴**: 純粋関数のみで構成。
-- **主要ファイル**:
-    - `src/Logic/FHN.jl`: FitzHugh-Nagumoモデルの微分方程式。
-    - `src/Logic/PhaseReduction.jl`: 位相縮約、安定性指標の計算式。
-
-### Layer 3: Interpreters Layer [Impure]
-- **役割**: eDSLコマンドの解釈と実行。ODEソルバーの呼び出しなど、計算負荷の高い処理を担当。
-- **特徴**: DomainとLogicを使用し、計算結果を生成する。
-- **主要ファイル**:
-    - `src/Interpreters/SimulationInterpreter.jl`: 微分方程式の数値積分。
-    - `src/Interpreters/PhaseInterpreter.jl`: 位相感受関数や結合関数の計算パイプライン。
-
-### Layer 4: Runtime Layer [Impure]
-- **役割**: ファイルI/Oなどの外部とのやり取り。
-- **特徴**: システムの状態変更や永続化を担当。
-- **主要ファイル**:
-    - `src/Runtime/IO/IOHandler.jl`: JLD2形式でのデータ保存・読み込み。
-
----
-
-## 3. 主要データ構造 (API Reference)
-
-ユーザーが直接扱う主要なデータ型 (`src/Domain/Types.jl`) です。
-
-### `NetworkParams`
-ネットワーク設定を保持する構造体。
-```julia
-struct NetworkParams
-    N::Int                    # 振動子数
-    fhn::FHNParams           # FHNパラメータ (δ, a, b)
-    I::Vector{Float64}       # 外部入力
-    K::Matrix{Float64}       # ネットワーク内結合行列
-    topology::TopologyType   # トポロジー
-end
 ```
-**作成方法**:
-```julia
-# デフォルト設定で作成（N=4）
-params = NetworkParams(4)
+┌─────────────────────────────────────────────────────┐
+│  scripts/                                           │
+│  quick_start.jl, temperature_sweep.jl,              │
+│  run_simulation.jl, benchmark.jl, plot_results.jl   │
+├─────────────────────────────────────────────────────┤
+│                                                     │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  Runtime Layer [Impure]                       │  │
+│  │  MonteCarlo.jl  - MC更新、温度掃引            │  │
+│  │  IO.jl          - JLD2保存・読み込み           │  │
+│  │  Visualization.jl - GLMakieプロット            │  │
+│  └───────────────────────────────────────────────┘  │
+│                      ↑ 呼び出し                      │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  Ising Layer [Pure]                           │  │
+│  │  Lattice.jl    - 格子生成                      │  │
+│  │  Physics.jl    - エネルギー、磁化、ΔE          │  │
+│  │  Statistics.jl - 熱力学量の導出                 │  │
+│  └───────────────────────────────────────────────┘  │
+│                      ↑ 型参照                        │
+│  ┌───────────────────────────────────────────────┐  │
+│  │  Domain Layer [Pure]                          │  │
+│  │  Types.jl - 全型定義                           │  │
+│  └───────────────────────────────────────────────┘  │
+│                                                     │
+└─────────────────────────────────────────────────────┘
 ```
 
-### `StablePeriodicSolution` (SPS)
-安定周期解の計算結果。
+### レイヤー構成
+
+| レイヤー | ファイル | Pure/Impure | 役割 |
+|---------|---------|------------|------|
+| Domain | `Types.jl` | Pure | 型定義、バリデーション |
+| Ising | `Lattice.jl`, `Physics.jl`, `Statistics.jl` | Pure | 格子生成、物理量計算、統計処理 |
+| Runtime | `MonteCarlo.jl`, `IO.jl`, `Visualization.jl` | Impure | MC更新（乱数）、ファイルIO、プロット |
+
+## 3. 主要データ構造
+
+### パラメータ
+
 ```julia
-struct StablePeriodicSolution
-    N::Int
-    Ntheta::Int             # 位相の離散化数
-    T::Float64              # 周期
-    omega::Float64          # 角周波数
-    Xs::Matrix{Float64}     # リミットサイクル軌道
-    params::NetworkParams
-end
+params = IsingParams(32, 1.0)       # L=32, J=1.0
+config = SimulationConfig(5000, 2000, 5)  # sweeps, equil, interval
 ```
 
-### `TotalPCF`
-全体位相結合関数 $\Gamma(\phi, \psi)$。
+### 結果
+
 ```julia
-struct TotalPCF
-    N::Int
-    Gamma::Matrix{Float64}  # Γ関数
-    C::Array{Float64, 3}    # 結合テンソル C_ijk
-    dGamma_dphi::Float64    # ∂Γ/∂φ (0,0)
-    dGamma_dpsi::Float64    # ∂Γ/∂ψ (0,0)
-    # ...
-end
+# 単一温度
+SingleTemperatureResult(params, T, averages, thermodynamics, acceptance_rate)
+
+# 温度掃引
+TemperatureSweepResult(params, config, temperatures, results)
 ```
 
----
+## 4. API リファレンス
 
-## 4. eDSL コマンド (API Reference)
+### Pure関数 (Ising/)
 
-計算処理は「コマンド」として表現され、`interpret` 関数に渡されて実行されます。
-
-### 基本的な計算フロー
-1. **`ComputeSPS`**: 安定周期解を計算
-2. **`ComputePSF`**: 位相感受関数 (Adjoint) を計算
-3. **`ComputeIndividualPCF`**: 個別の結合関数 $\gamma_{ijk}$ を計算
-4. **`OptimizeLinearStability` / `OptimizeRotation`**: 最適な結合テンソル $C$ を計算
-
-### コマンド例
-
-#### `ComputeSPS`
 ```julia
-cmd = ComputeSPS(params, 101, 1000.0)
-# params: NetworkParams
-# 101: 位相分割数 (Ntheta)
-# 1000.0: 緩和時間 (t_relax)
+# 格子生成
+lattice = random_lattice(32)
+lattice = uniform_lattice(32; spin=-1)
+
+# 物理量
+m = magnetization(lattice)              # ⟨s⟩ ∈ [-1, 1]
+E = energy(lattice; J=1.0)              # H = -J Σ s_i s_j
+dE = delta_energy(lattice, i, j; J=1.0) # スピン反転時の ΔE
+
+# 統計
+thermo = compute_thermodynamics(avg, N, T)  # ThermalAverages → ThermodynamicQuantities
 ```
 
-#### `ComputeIndividualPCF`
-特定の $i, j, k$ トリプレットに対する結合関数を計算します。
+### Impure関数 (Runtime/)
+
 ```julia
-cmd = ComputeIndividualPCF(sps, psf, i, j, k)
+# MC更新
+accepted = metropolis_step!(lattice, beta; J=1.0)  # 1ステップ
+n_accept = sweep!(lattice, beta; J=1.0)            # 1スイープ (L²回)
+
+# 高レベルシミュレーション
+avg, total = run_single_temperature(lattice, beta, N, config; J=1.0)
+result = run_temperature_sweep(params, config, temperatures)
+
+# IO
+save_result("file.jld2", result)
+data = load_result("file.jld2")
+
+# 可視化
+fig = plot_thermodynamics(sweep_result)
+fig = plot_spin_lattice(lattice)
+fig = plot_binder_cumulant([sweep1, sweep2])
+fig = plot_timeseries(energies, magnetizations)
 ```
 
-#### `ObserveLinearStability`
-線形安定性指標 $\Lambda$ を最大化（負の方向に大きく）する結合テンソルを求めます。
-```julia
-cmd = OptimizeLinearStability(individual_pcfs, target_q, N, Ntheta)
-# target_q: 目標とする Γ1 + Γ2 の値
-```
+## 5. 使用方法
 
----
-
-## 5. 使用方法ガイド
-
-### 高レベル API の使用
-最も簡単な使用方法は、`Ising2D.jl` で定義されている高レベル関数を使用することです。
-
-#### 最適化の実行 (`run_optimization`)
-全パイプライン（SPS計算 $\to$ 最適化）を一括で実行します。
+### 単一温度シミュレーション
 
 ```julia
 using Ising2D
 
-# N=4 のネットワークで、線形安定性最適化を実行
-# target_value は目標とする安定性指標
-results = run_optimization(4; 
-    coupling_type=:linear, 
-    target_value=-0.1, 
-    save_results=true
-)
+lattice = random_lattice(32)
+beta = 1.0 / 2.269
+config = SimulationConfig(5000, 1000, 5)
+avg, accepted = run_single_temperature(lattice, beta, 1024, config)
+thermo = compute_thermodynamics(avg, 1024, 2.269)
 ```
 
-#### 戦略比較 (`compare_strategies`)
-一様結合、線形最適化、回転最適化の性能を比較します。
+### 温度掃引
 
 ```julia
 using Ising2D
 
-results = compare_strategies(4)
+params = IsingParams(32, 1.0)
+config = SimulationConfig(5000, 2000, 5)
+temps = collect(1.5:0.05:3.5)
+result = run_temperature_sweep(params, config, temps)
+fig = plot_thermodynamics(result)
 ```
 
-### 低レベル API の使用 (ステップバイステップ)
-詳細な制御が必要な場合は、コマンドを個別に作成して `interpret` します。
+### CLIスクリプト
 
-```julia
-using Ising2D
+```bash
+# デフォルト実行
+julia --project scripts/run_simulation.jl
 
-# 1. パラメータ設定
-params = NetworkParams(4)
+# カスタムパラメータ
+julia --project scripts/run_simulation.jl --L 64 --Tmin 2.0 --Tmax 2.6 --dT 0.02
 
-# 2. 安定周期解の計算
-result_sps = interpret(ComputeSPS(params))
-if !is_success(result_sps)
-    error("SPS calculation failed")
-end
-sps = unwrap(result_sps)
-
-# 3. 位相感受関数の計算
-result_psf = interpret(ComputePSF(sps))
-psf = unwrap(result_psf)
-
-# 4. 個別PCFの計算 (全組み合わせ)
-pcfs = IndividualPCF[]
-for i in 1:4, j in 1:4, k in 1:4
-    cmd = ComputeIndividualPCF(sps, psf, i, j, k)
-    push!(pcfs, unwrap(interpret(cmd)))
-end
-
-# 5. 線形安定性の最適化
-cmd_opt = OptimizeLinearStability(pcfs, -0.2, 4, 101)
-result_opt = interpret(cmd_opt)
-opt_result = unwrap(result_opt)
-
-println("Optimized Frobenius Norm: $(opt_result.frobenius_norm)")
+# ベンチマーク
+julia --project scripts/benchmark.jl
 ```
 
-## 6. IO とデータ保存
+## 6. テスト
 
-計算結果は `Runtime/IO/IOHandler.jl` を通じて JLD2 ファイルとして保存可能です。
+```bash
+# 全テスト
+julia --project -e 'using Pkg; Pkg.test()'
 
-- `Generic save`: `interpret(SaveData(data, "filename.jld2"))`
-- `Specific helpers`: `save_sps`, `save_optimization_result` などがエクスポートされています。
-
-## 7. エラーハンドリング
-
-`interpret` 関数は `ComputationResult` 型（`Success` または `Failure`）を返します。
-例外をスローするのではなく、結果型でのハンドリングが推奨されます。
-
-```julia
-result = interpret(cmd)
-if is_success(result)
-    val = unwrap(result)
-else
-    println("Error: $(result.error)")
-end
+# 個別テスト
+julia --project -e 'using Test, Ising2D; @testset "Statistics" begin include("test/Unit/test_statistics.jl") end'
 ```
+
+テスト構成:
+- Unit tests (80%): `test/Unit/test_*.jl`
+- Integration / E2E (20%): `test/Ising/`, `test/E2E/`
+
+## 7. パフォーマンス
+
+BenchmarkTools による計測結果 (L=32, Apple Silicon):
+
+| 関数 | 時間 | アロケーション |
+|------|------|-------------|
+| `delta_energy` | ~4.4 ns | 0 |
+| `metropolis_step!` | ~17 ns | 0 |
+| `sweep!` | ~16 μs | 0 |
+| 1スピン更新 | ~15 ns | 0 |

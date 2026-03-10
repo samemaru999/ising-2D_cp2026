@@ -1,51 +1,88 @@
-# Runtime/IO Layer Documentation
+# IO & Visualization Layer Documentation
 
-`src/Runtime/IO/` ディレクトリは、計算結果の永続化、ファイル入出力、シリアライゼーションを担当します。これは Impure なレイヤーであり、ファイルシステムへの副作用を持ちます。
+`src/Runtime/IO.jl` と `src/Runtime/Visualization.jl` は、データ永続化と可視化を担当する **Impure** レイヤー。
 
-## ファイル一覧
+## ファイル
 
-- `IOHandler.jl`: JLD2形式でのデータ保存・読み込みとファイル管理。
+- `src/Runtime/IO.jl`: JLD2形式での保存・読み込み
+- `src/Runtime/Visualization.jl`: GLMakieによるプロット
 
 ---
 
-## 1. IOHandler.jl
+## 1. IO.jl
 
-`JLD2.jl` パッケージを使用して、Juliaのデータ構造をバイナリ形式で効率的に保存・読み込みします。
+`JLD2.jl` パッケージを使用してシミュレーション結果を保存・読み込みする。
 
-### ファイル命名 (`generate_filename`)
-以下の形式で一貫したファイル名を生成します。
+### 保存関数
 
-`{Type}_N{N}_Nth{Ntheta}_{Option}_{Date}.jld2`
+#### `save_result(filename, result::TemperatureSweepResult)`
+温度掃引結果を保存。保存されるフィールド:
+- `params`, `config`, `temperatures`, `results`
 
-- 例: `sps_N4_Nth101_20240101.jld2`
-- オプション: `_linear`, `_rotation`, `_0.10` など
+#### `save_result(filename, result::SingleTemperatureResult)`
+単一温度結果を保存。保存されるフィールド:
+- `params`, `temperature`, `averages`, `thermodynamics`, `acceptance_rate`
 
-### コマンド処理
-- **`interpret(cmd::SaveData)`**: 汎用的なデータ保存を実行します。フォーマットとして `:jld2` または `:csv` をサポートします。
-- **`interpret(cmd::LoadData)`**: ファイルからデータを読み込み、指定された型として返します。
+### 読み込み関数
 
-### JLD2 保存関数
-各データ型ごとに特化した保存関数が用意されています。これらはメタデータ（作成日時、バージョン情報）を自動的に付与します。
+#### `load_result(filename) -> Dict{String, Any}`
+JLD2ファイルからデータをDictとして読み込む。
 
-- **`save_sps`**: 安定周期解 (`StablePeriodicSolution`) を保存。
-- **`save_psf`**: 位相感受関数 (`PhaseSensitivityFunction`) を保存。
-- **`save_total_pcf`**: 全体位相結合関数 (`TotalPCF`) を保存。
-- **`save_optimization_result`**: 最適化結果 (`OptimizationResult`) を保存。
-- **`save_pipeline_results`**: パイプライン実行結果全体をディレクトリに一括保存します。
+### ファイル命名規則
 
-### JLD2 読み込み関数
-保存されたファイルからデータを復元します。
+| パターン | 例 |
+|---------|-----|
+| 単一温度 | `L32_T2.269.jld2` |
+| 温度掃引 | `sweep_L32.jld2` |
 
-- **`load_sps`**: `StablePeriodicSolution` を復元（`NetworkParams` のデシリアライズを含む）。
-- **`load_psf`**: `PhaseSensitivityFunction` を復元。
-- **`load_total_pcf`**: `TotalPCF` を復元。
-- **`load_optimization_result`**: `OptimizationResult` を復元。
+出力先: `data/output/{timestamp}/`
 
-### CSV出力
-位相ダイナミクスなどの時系列データは、解析のためにCSV形式でも出力可能です。
+---
 
-- **`save_phase_time_series_csv`**: 位相時系列データ (`PhaseTimeSeries`) をCSVとして保存します。
+## 2. Visualization.jl
 
-### ユーティリティ
-- **`list_data_files`**: 指定ディレクトリ内の `.jld2` ファイル一覧を取得。
-- **`get_file_info`**: ファイルのヘッダー情報を読み取り、メタデータを返します。
+`GLMakie.jl` を使用したプロット関数群。全関数は `Figure` オブジェクトを返す。
+
+### 関数一覧
+
+#### `plot_spin_lattice(lattice) -> Figure`
+スピン配置のヒートマップ。青 (-1) / 赤 (+1)。
+
+#### `plot_thermodynamics(result::TemperatureSweepResult) -> Figure`
+物理量の温度依存性を4パネルで表示:
+- ⟨e⟩(T), ⟨|m|⟩(T), C(T), χ(T)
+
+#### `plot_binder_cumulant(results::Vector{TemperatureSweepResult}) -> Figure`
+複数格子サイズの $U_L(T)$ を重ね描き。交点が臨界温度 $T_c$ を示す。
+
+#### `plot_timeseries(energies, magnetizations) -> Figure`
+エネルギー・磁化のモンテカルロ時系列（平衡化の確認用）。
+
+---
+
+## スクリプト
+
+### `scripts/quick_start.jl`
+単一温度 (T=2.269) でのMCシミュレーション。
+
+### `scripts/temperature_sweep.jl`
+T=1.5〜3.5 を 0.05 刻みで掃引（パラメータ固定版）。
+
+### `scripts/run_simulation.jl`
+コマンドライン引数対応の温度掃引スクリプト。
+
+```bash
+julia --project scripts/run_simulation.jl --L 64 --Tmin 2.0 --Tmax 2.6 --dT 0.02
+```
+
+引数: `--L`, `--J`, `--Tmin`, `--Tmax`, `--dT`, `--n_sweeps`, `--n_eq`, `--sample_interval`, `--no-plot`
+
+### `scripts/plot_results.jl`
+保存済みJLD2ファイルを読み込んでプロット。
+
+```bash
+julia --project scripts/plot_results.jl data/output/20260310/sweep_L32.jld2
+```
+
+### `scripts/benchmark.jl`
+ホットパス (`delta_energy`, `metropolis_step!`, `sweep!`) のBenchmarkTools計測。

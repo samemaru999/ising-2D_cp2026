@@ -1,73 +1,75 @@
-# Interpreters Layer Documentation
+# Runtime/MonteCarlo Layer Documentation
 
-`src/Interpreters/` ディレクトリは、eDSLコマンドを解釈し、実際の数値計算（副作用を伴う計算）を実行するインプリメンテーション層です。
-FDDアーキテクチャにおいて、数学的な定義（Domain/Logic）と、それを実行するための計算機処理（MPI, ODEソルバー等）を分離する役割を持ちます。
+`src/Runtime/MonteCarlo.jl` は、メトロポリス法によるモンテカルロ更新と温度掃引シミュレーションを担当する。乱数を使用するため **Impure** レイヤー。
 
-## ファイル一覧
+## ファイル
 
-- `SimulationInterpreter.jl`: 微分方程式の数値積分（SPS等）
-- `PhaseInterpreter.jl`: 位相計算パイプライン（PSF, PCF, 最適化）
+- `src/Runtime/MonteCarlo.jl`: メトロポリス更新、スイープ、温度掃引
 
 ---
 
-## 1. SimulationInterpreter.jl
+## 関数一覧
 
-`DifferentialEquations.jl` を使用して、力学系のシミュレーションコマンドを実行します。
+### 低レベル関数
 
-### SPS計算 (`ComputeSPS`)
-安定周期解 (Stable Periodic Solution) を求めます。
+#### `metropolis_step!(lattice, beta; J=1.0) -> Bool`
 
-1. **緩和**: 初期状態から `t_relax` 時間だけシミュレーションを実行し、過渡状態を脱します。
-2. **周期推定**: `estimate_period` 関数でピーク検出を行い、周期 $T$ を概算します。
-3. **軌道サンプリング**: 推定された周期 $T$ で再度シミュレーションを行い、$N_\theta$ 点の等時間間隔データを取得します。
-4. **補正**: 終点を始点と一致させ、閉軌道として `StablePeriodicSolution` を返します。
+ランダムに1サイトを選び、メトロポリス法でスピン反転を試みる。
 
-### PSF計算 (`ComputePSF`)
-随伴方程式 (Adjoint Equation) を解いて位相感受関数 $Z(\theta)$ (コード内 `Q`) を求めます。
+1. サイト $(i,j)$ をランダムに選択
+2. $\Delta E = $ `delta_energy(lattice, i, j; J)` を計算
+3. 受容判定: $\Delta E \leq 0$ または $\text{rand}() < \exp(-\beta \Delta E)$
+4. 受容時にスピン反転: `lattice[i,j] *= -1`
 
-- アルゴリズム: 後退差分法による反復解法
-    - $\frac{dZ}{d\theta} = -J(X_s(\theta))^T Z(\theta)$
-- **`iterate_adjoint_equation`**: 時間を逆行 ($\theta: 2\pi \to 0$) して1周期分積分します。
-- **`normalize_psf`**: $Z(\theta) \cdot F(X_s(\theta)) = \omega$ を満たすように正規化します。
+- **戻り値**: 反転が受容されたら `true`
+- **ベンチマーク**: ~16.6 ns, 0 allocations
 
-### フルダイナミクス (`SimulateFullDynamics`)
-高次結合を含む3ネットワーク全体のシミュレーションを実行します。
+#### `sweep!(lattice, beta; J=1.0) -> Int`
 
-- 状態ベクトルを連結 ($3 \times N \times D_s$) して ODE を解きます。
+$L \times L$ 回の `metropolis_step!` を実行（1モンテカルロスイープ）。
 
-### 位相ダイナミクス (`SimulatePhaseDynamics`)
-縮約された位相方程式をシミュレーションします。
+- **戻り値**: 受容された回数
+- **ベンチマーク** (L=32): ~15.8 μs, 0 allocations
+- **1スピン更新あたり**: ~15.4 ns
 
-- 定義された `total_pcf` ($\Gamma$) を用いて $\dot{\phi}$ を計算します。
+### 高レベル関数
+
+#### `run_single_temperature(lattice, beta, N, config; J=1.0) -> (ThermalAverages, Int)`
+
+1つの温度で平衡化 + 測定を実行。
+
+1. **平衡化**: `config.n_equilibration` スイープ（結果は捨てる）
+2. **測定ループ**: `config.n_sweeps` スイープ
+   - `config.sample_interval` ごとに物理量を測定
+   - `energy(lattice; J) / N`, `magnetization(lattice)` を計算
+   - `ThermalAverages` に累積
+
+- **戻り値**: `(ThermalAverages, total_accepted)`
+- `lattice` は in-place で更新される
+
+#### `run_temperature_sweep(params, config, temperatures) -> TemperatureSweepResult`
+
+温度配列をループし、各温度でシミュレーションを実行。
+
+1. 温度を**高温側からソート**（降順）
+2. `random_lattice(L)` で初期化
+3. 各温度で `run_single_temperature` → `compute_thermodynamics`
+4. 前の温度の格子状態を引き継ぐ（高温から徐冷）
+5. 結果を温度昇順に並べ替えて返す
 
 ---
 
-## 2. PhaseInterpreter.jl
+## メトロポリス法の物理
 
-位相縮約理論に基づく計算パイプラインを実行します。
+受容確率:
+$$P(\text{accept}) = \min\left(1, \exp(-\beta \Delta E)\right)$$
 
-### 個別PCF計算 (`ComputeIndividualPCF`)
-振動子のトリプレット $(i, j, k)$ ごとの結合関数 $\gamma_{ijk}$ を計算します。
-Logic層の `compute_individual_pcf` を呼び出し、結果を返します。
+2次元正方格子では $\Delta E \in \{-8J, -4J, 0, +4J, +8J\}$ の5値のみ。これを利用した事前テーブル化 (`BoltzmannTable`) は将来の最適化候補。
 
-- **`compute_all_individual_pcfs_parallel`**: 全ての組み合わせ ($N^3$個) を計算します。
+## パフォーマンス特性
 
-### 全体PCF計算 (`ComputeTotalPCF`)
-結合テンソル $C$ と個別PCF $\gamma_{ijk}$ から全体結合関数 $\Gamma$ を構成します。
-
-### 最適化コマンド
-- **`OptimizeLinearStability`**: 線形安定性を最適化するテンソルを探索。
-- **`OptimizeRotation`**: 回転特性を最適化するテンソルを探索。
-- それぞれ Logic層の最適化関数を呼び出し、結果の検証 (`validate_optimization_result`) と性能評価 (`evaluate_coupling_performance`) を行います。
-
-### パイプライン実行 (`run_full_pipeline`)
-一連の解析フローを自動実行する高レベル関数です。
-
-1. **SPS計算**: リミットサイクル取得
-2. **PSF計算**: 位相感受関数取得
-3. **IndividualPCFs計算**: $N^3$ 個の要素関数計算
-4. **最適化**: 指定された戦略 (`:linear`, `:rotation`, `:uniform`) で結合テンソル $C$ を決定
-5. **TotalPCF & Metrics**: 最終的な結合関数と安定性を評価
-
-### 実験用 (`run_comparison_experiment`)
-一様結合、線形最適化、回転最適化の3条件を同一パラメータで実行し、性能比較を行います。
+| 関数 | L=32 時間 | アロケーション |
+|------|-----------|-------------|
+| `metropolis_step!` | ~17 ns | 0 |
+| `sweep!` | ~16 μs | 0 |
+| 1スピン更新 | ~15 ns | 0 |
