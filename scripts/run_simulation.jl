@@ -24,6 +24,7 @@
 
 using Ising2D
 using Dates
+using GLMakie
 
 function parse_args(args)
     defaults = Dict(
