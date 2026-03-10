@@ -19,12 +19,16 @@ include("Ising/Statistics.jl")
 # =============================================================================
 
 include("Runtime/MonteCarlo.jl")
-include("Runtime/Interpreter.jl")
+include("Runtime/IO.jl")
 
 # =============================================================================
 # Exports
 # =============================================================================
 
+export IsingParams, SimulationConfig
+export Observables, ThermalAverages, ThermodynamicQuantities
+export SingleTemperatureResult, TemperatureSweepResult
+export BoltzmannTable
 export random_lattice, uniform_lattice
 export magnetization, energy, delta_energy
 export metropolis_step!, sweep!
