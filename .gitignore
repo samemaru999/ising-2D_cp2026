@@ -28,8 +28,8 @@ data/*
 !data/output/
 data/output/*
 !data/output/figs/
-data/output/figs/**
-!data/output/figs/**/*.png
+data/output/figs/*
+!data/output/figs/*.png
 
 # JLD2 data files
 *.jld2
