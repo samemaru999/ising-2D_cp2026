@@ -22,9 +22,14 @@ Thumbs.db
 .ipynb_checkpoints/
 *.ipynb
 # Output and data (generated at runtime)
+reference/
 output/
-data/
-*.png
+data/*
+!data/output/
+data/output/*
+!data/output/figs/
+data/output/figs/*
+!data/output/figs/*.png
 
 # JLD2 data files
 *.jld2
