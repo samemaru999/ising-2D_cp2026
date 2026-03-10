@@ -12,6 +12,7 @@ include("Ising/Lattice.jl")
 # =============================================================================
 
 export random_lattice, uniform_lattice
-export magnetization, energy
+export magnetization, energy, delta_energy
+export metropolis_step!, sweep!
 
 end # module Ising2D
