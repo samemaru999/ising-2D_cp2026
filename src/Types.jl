@@ -10,12 +10,11 @@ data_structure.md に対応する。
 struct IsingParams
     L::Int
     J::Float64
-    h::Float64
 
-    function IsingParams(L::Int, J::Float64, h::Float64)
+    function IsingParams(L::Int, J::Float64)
         L >= 2 || throw(ArgumentError("L must be ≥ 2, got $L"))
         J != 0.0 || throw(ArgumentError("J must be non-zero"))
-        new(L, J, h)
+        new(L, J)
     end
 end
 
